@@ -1,9 +1,40 @@
 // Require the necessary discord.js classes
-import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
 import 'dotenv/config';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 // Create a new client instance
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+// Command collection
+client.commands = new Collection();
+
+// CommonJS Equivalents
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Path to commands directory
+const foldersPath = path.join(__dirname, 'commands');
+const commandFolders = fs.readdirSync(foldersPath);
+
+for (const folder of commandFolders) {
+	const commandsPath = path.join(foldersPath, folder);
+	const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+	for (const file of commandFiles) {
+		const filePath = path.join(commandsPath, file);
+		// Switch to ES6?
+		const command = await import(filePath);
+		// Set a new item in the Collection with the key as the command name and the value as the exported module
+		if ('data' in command && 'execute' in command) {
+			client.commands.set(command.data.name, command);
+		}
+		else {
+			console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+		}
+	}
+}
 
 // When the client is ready, run this code (only once).
 // The distinction between `client: Client<boolean>` and `readyClient: Client<true>` is important for TypeScript developers.
@@ -15,3 +46,10 @@ client.once(Events.ClientReady, readyClient => {
 // Log in to Discord with your client's token
 // eslint-disable-next-line no-undef
 client.login(process.env['DISCORD_TOKEN']);
+
+// Interaction listener
+client.on(Events.InteractionCreate, interaction => {
+	if (!interaction.isChatInputCommand()) return;
+	console.log(interaction);
+});
+
